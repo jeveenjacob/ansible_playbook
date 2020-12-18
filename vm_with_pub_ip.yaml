@@ -1,0 +1,76 @@
+# Description
+# ===========
+# This plabyook covers below scenario:
+# 1. create a VM with below conditions
+#    - public IP
+#    - vnet in another resource group
+# 1. clone a java application, build it
+# 1. install tomcat, deploy the java app to newly created VM
+#
+# Prequisite
+# ===========
+# - git on ansible host
+# - maven on ansible host
+- name: Create Azure VM
+  hosts: localhost
+  connection: local
+  gather_facts: true
+  vars:
+    resource_group_vm: MyAzure_group
+    vnet_name: myVentName
+    subnet_name: mysubNet
+    vm_name: MyTestVm
+    location: eastus
+    repo_url: https://github.com/yungezz/helloworld.git
+    workspace: ~/src/helloworld
+    admin_username: ansibletower
+    admin_password: Ansibletower@123
+
+#  roles:
+#    - azure.azure_preview_modules
+  tasks:
+
+    - name: Create a resource group for vnet
+      azure_rm_resourcegroup:
+          name: "{{ resource_group_vm }}"
+          location: "{{ location }}"
+
+    - name: Create virtual network
+      azure_rm_virtualnetwork:
+        resource_group: "{{ resource_group_vm }}"
+        name: "{{ vnet_name }}"
+        address_prefixes: "10.0.0.0/16"
+        
+    - name: Add subnet
+      azure_rm_subnet:
+        resource_group: "{{ resource_group_vm }}"
+        name: "{{ subnet_name }}"
+        address_prefix: "10.0.1.0/24"
+        virtual_network: "{{ vnet_name }}"
+
+    - name: Create a resource group for vm
+      azure_rm_resourcegroup:
+          name: "{{ resource_group_vm }}"
+          location: "{{ location }}"
+
+    - name: Create VM
+      azure_rm_virtualmachine:
+        resource_group: "{{ resource_group_vm }}"
+        name: "{{ vm_name }}"
+        vm_size: Standard_DS1_v2
+        admin_username: "{{ admin_username }}"
+        admin_password: "{{ admin_password }}"
+        virtual_network_name: "{{ vnet_name }}"
+        subnet_name: "{{ subnet_name }}"
+        public_ip_allocation_method: Static
+        image:
+          offer: UbuntuServer
+          publisher: Canonical
+          sku: 16.04-LTS
+          version: latest
+      register: output
+      
+    - name: Dump public IP for VM which will be created
+      debug:
+        msg: "The public IP is {{ output.ansible_facts.azure_vm.properties.networkProfile.networkInterfaces[0].properties.ipConfigurations[0].properties.publicIPAddress }}."
+   
